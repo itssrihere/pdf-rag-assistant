@@ -26,6 +26,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-rag}
       POSTGRES_HOST: db
+      COLLECTION_NAME: ${COLLECTION_NAME:-pdf_docs}
       DOCS_DIR: /docs
     volumes:
       - ${DOCS_DIR:-./docs}:/docs
