@@ -1,4 +1,4 @@
-# rag-pdf
+# pdf-rag-assistant
 
 A terminal RAG chatbot: point it at a folder of PDFs, then ask questions and get answers with file and page citations.
 
@@ -7,7 +7,7 @@ A terminal RAG chatbot: point it at a folder of PDFs, then ask questions and get
 Requires Python 3.12+, Docker, an OpenAI API key (embeddings), an Anthropic API key (Claude answers; or set `CHAT_PROVIDER=openai`), and a folder of PDFs.
 
 ```bash
-git clone <repo-url> && cd rag-pdf
+git clone https://github.com/itssrihere/pdf-rag-assistant.git && cd pdf-rag-assistant
 
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
@@ -30,18 +30,21 @@ The first run embeds every PDF (small OpenAI cost); later runs skip PDFs already
 **Why bibliographies are dropped.** In a test over 21 papers, about 22% of chunks were reference-list entries. They match topic queries well (they list titles on the same subject), crowd out real content, and let the model cite a paper's *references* as if they were findings. Ingest cuts each paper at its "References" heading (or numbered list at the end), then drops only later pages that are densely bibliographic, so figure legends and methods that follow are kept. Use `--keep-references` to disable.
 
 ```
-rag-pdf/
+pdf-rag-assistant/
 ├── main.py            # Entry point: ingest → interactive Q&A
 ├── config.py          # Settings from environment / .env
 ├── ingest.py          # Load, chunk, embed, store (also runnable standalone)
 ├── query.py           # Retrieval, memory, chat loop (also runnable standalone)
 ├── llm.py             # Chat-model factory: Claude (default) or OpenAI
+├── pdf_text.py        # PDF text extraction (pypdf default; optional pypdfium2)
+├── hybrid.py          # BM25 + vector retrieval experiment (not used by the chatbot)
 ├── eval/              # Retrieval evaluation: questions, metrics, runner (see eval/README.md)
 ├── tests/             # Unit tests (no network or database needed)
-├── requirements.txt   # Runtime dependencies (requirements-dev.txt adds pytest)
+├── requirements.txt   # Runtime dependencies (requirements-dev.txt adds test/experiment extras)
 ├── Dockerfile         # python:3.12-slim, runs main.py
 ├── docker-compose.yml # pgvector/Postgres 16 + the app
-└── .env.example       # Template for .env (git-ignored)
+├── .env.example       # Template for .env (git-ignored)
+└── LICENSE            # MIT
 ```
 
 ## Setup details (local)
