@@ -115,13 +115,14 @@ Read from environment variables, or from `.env` (real environment variables take
 | `RETRIEVAL_K` | `8` | Chunks retrieved per query (8 beat 4 in the retrieval eval; see `eval/`) |
 | `COLLECTION_NAME` | `pdf_docs` | pgvector collection name; use different names to keep variants side by side |
 | `HISTORY_TURNS` | `5` | Past Q&A pairs remembered in a chat |
+| `MAX_DOCS` | `500` | Most PDFs one ingest run processes, in path order (`--max-docs`; `0` = no limit). A guard against embedding a huge folder by accident; anything beyond it is reported, not silently dropped |
 | `PDF_EXTRACTOR` | `pypdf` | `pypdfium2` is an optional alternative (`pip install pypdfium2`); see Tests and evaluation for why `pypdf` stays the default |
 
 ## Tests and evaluation
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                                   # 94 unit tests; no database or API key needed
+pytest                                   # 112 unit tests; no database or API key needed
 python -m eval.run_eval --ks 4 8 12 16   # retrieval evaluation (needs the database and OPENAI_API_KEY)
 ```
 
@@ -171,6 +172,8 @@ A learning project: I built it to get hands-on with Python and its ecosystem (La
 This project was built with Claude Code (Anthropic). I set the goals, made the design decisions, and judged the results; Claude Code wrote most of the code and tests under that direction. Every number in this README comes from runs of the included evaluation, and the experiments that did not help are reported alongside the ones that did.
 
 ## Notes and limitations
+
+- **One bad PDF doesn't stop ingestion.** A file that fails (corrupt, unreadable, or an OpenAI connection, timeout or rate-limit error while embedding) is logged to stderr with its root cause and skipped, and a summary at the end lists every failure, every PDF with no extractable text (scans; there is no OCR), and anything left out by `MAX_DOCS`. `python ingest.py` exits with status 1 if any file failed. Five failures in a row stop the run early, since that usually means the database or API key is the problem (with the client's retries that takes a couple of minutes during a total outage). A failed file leaves nothing partial behind, so re-running retries only what is missing. In the chat, a question that fails (for example the API is unreachable) prints an error and the session continues.
 
 - **Password is set once.** Postgres applies `POSTGRES_PASSWORD` only when the data volume is created. To change it later, run `ALTER USER postgres PASSWORD '...'` (e.g. via `docker exec <db-container> psql -U postgres`), or `docker compose down -v` (deletes all ingested data).
 - **Edited PDFs:** a changed file gets a new hash and is ingested as new chunks; the old version's chunks remain until you run with `--reset`.
