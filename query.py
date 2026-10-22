@@ -5,6 +5,7 @@ Usage: python query.py
 """
 
 import argparse
+import sys
 
 from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
@@ -121,7 +122,12 @@ def interactive_loop(retriever, llm, banner: str = "RAG PDF Assistant — type '
             print("Goodbye.")
             break
 
-        answer = ask(retriever, llm, question, history)
+        try:
+            answer = ask(retriever, llm, question, history)
+        except Exception as error:  # e.g. the OpenAI or Anthropic API is unreachable: keep the session alive
+            print(f"\nSorry, that question failed ({type(error).__name__}: {' '.join(str(error).split())[:200]}). "
+                  "Check your connection and try again.\n", file=sys.stderr)
+            continue
         history += [HumanMessage(question), AIMessage(answer)]
         history = trim_history(history, config.HISTORY_TURNS)
         print()

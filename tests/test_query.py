@@ -113,3 +113,28 @@ def test_follow_up_is_rewritten_before_retrieval_but_answered_as_asked():
 def test_no_sources_line_when_nothing_retrieved(capsys):
     query.ask(FakeRetriever([]), FakeLLM("I don't know."), "Q?")
     assert "Sources:" not in capsys.readouterr().out
+
+
+# --- the chat loop survives a failed request
+
+def test_chat_loop_survives_a_failed_request_and_keeps_history_clean(monkeypatch, capsys):
+    answers = iter([RuntimeError("Connection error."), "second answer", "third answer"])
+    seen_histories = []
+
+    def fake_ask(retriever, llm, question, history=None):
+        seen_histories.append(list(history or []))
+        outcome = next(answers)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    inputs = iter(["first question", "second question", "third question", "exit"])
+    monkeypatch.setattr(query, "ask", fake_ask)
+    monkeypatch.setattr("builtins.input", lambda prompt="": next(inputs))
+
+    query.interactive_loop(None, None)
+
+    assert "that question failed (RuntimeError: Connection error.)" in capsys.readouterr().err
+    assert len(seen_histories) == 3
+    assert seen_histories[1] == []                  # the failed turn was not added to the history
+    assert len(seen_histories[2]) == 2              # the successful turn was
