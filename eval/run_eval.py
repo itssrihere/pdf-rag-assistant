@@ -32,8 +32,16 @@ QUESTIONS = Path(__file__).parent / "questions.jsonl"
 PAGE_IS_SECONDARY = {"disambiguation", "exact_term"}  # answer may appear on several pages of the right paper
 
 
-def load_questions() -> list[dict]:
-    return [json.loads(line) for line in QUESTIONS.read_text().splitlines() if line.strip()]
+def load_questions(path: Path | str = QUESTIONS) -> list[dict]:
+    return [json.loads(line) for line in Path(path).read_text().splitlines() if line.strip()]
+
+
+def question_locations(q: dict) -> dict[str, list[int]]:
+    """Where the answer lives: {file: pages}. A question lists `expected_locations` when a fact is documented in
+    several places (any of them counts), or the older single `expected_file` / `expected_pages` pair."""
+    if q.get("expected_locations"):
+        return {loc["file"]: loc["pages"] for loc in q["expected_locations"]}
+    return {q["expected_file"]: q["expected_pages"]}
 
 
 _hybrid_retrievers: dict = {}  # one keyword index per store, built on first use
@@ -69,16 +77,15 @@ def score_question(q: dict, retrieved_by_k: dict[int, list[metrics.Chunk]], ks: 
             result[f"file_prec@{k}"] = metrics.file_precision_at_k(retrieved_by_k[k], q["expected_files"], k)
         return result
     result = {}
+    locations = question_locations(q)
     for k in ks:
-        result[f"file_prec@{k}"] = metrics.file_precision_at_k(retrieved_by_k[k], [q["expected_file"]], k)
-        result[f"page_prec@{k}"] = metrics.page_precision_at_k(
-            retrieved_by_k[k], q["expected_file"], q["expected_pages"], k)
-        result[f"file_hit@{k}"] = metrics.hit_at_k(metrics.first_file_rank(retrieved_by_k[k], q["expected_file"]), k)
-        result[f"page_hit@{k}"] = metrics.hit_at_k(
-            metrics.first_page_rank(retrieved_by_k[k], q["expected_file"], q["expected_pages"]), k)
+        result[f"file_prec@{k}"] = metrics.file_precision_at_k(retrieved_by_k[k], list(locations), k)
+        result[f"page_prec@{k}"] = metrics.page_precision_at_k_any(retrieved_by_k[k], locations, k)
+        result[f"file_hit@{k}"] = metrics.hit_at_k(metrics.first_file_rank_any(retrieved_by_k[k], locations), k)
+        result[f"page_hit@{k}"] = metrics.hit_at_k(metrics.first_page_rank_any(retrieved_by_k[k], locations), k)
     widest = retrieved_by_k[ks[-1]]  # rank-based numbers come from the largest search
-    file_rank = metrics.first_file_rank(widest, q["expected_file"])
-    page_rank = metrics.first_page_rank(widest, q["expected_file"], q["expected_pages"])
+    file_rank = metrics.first_file_rank_any(widest, locations)
+    page_rank = metrics.first_page_rank_any(widest, locations)
     result.update({"file_rank": file_rank, "page_rank": page_rank,
                    "file_mrr": metrics.reciprocal_rank(file_rank), "page_mrr": metrics.reciprocal_rank(page_rank)})
     return result
@@ -179,6 +186,7 @@ def evaluate_answers(questions: list[dict], k: int, judge_model: str, show: bool
 
 def main():
     parser = argparse.ArgumentParser(description="Retrieval evaluation")
+    parser.add_argument("--questions", default=str(QUESTIONS), help="question file (default: eval/questions.jsonl)")
     parser.add_argument("--ks", type=int, nargs="+", default=[1, 4, 8, 16])
     parser.add_argument("--strategy", choices=["similarity", "mmr", "hybrid", "bm25"], default="similarity")
     parser.add_argument("--fetch-k", type=int, default=50, help="MMR: candidate pool size")
@@ -194,7 +202,7 @@ def main():
     args = parser.parse_args()
     ks = sorted(args.ks)
 
-    questions = load_questions()
+    questions = load_questions(args.questions)
     store = build_store()
     strategy = args.strategy + (f" (fetch_k={args.fetch_k}, lambda={args.lambda_mult})" if args.strategy == "mmr" else
                                 f" (bm25 weight {args.bm25_weight})" if args.strategy == "hybrid" else "")

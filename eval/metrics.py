@@ -48,3 +48,29 @@ def page_precision_at_k(retrieved: list[Chunk], expected_file: str, expected_pag
     of the right paper that may also be relevant)."""
     top = retrieved[:k]
     return sum(name == expected_file and page in expected_pages for name, page in top) / len(top) if top else 0.0
+
+
+# --- several valid locations (a fact documented in more than one place, e.g. a guide and a property table)
+
+Locations = dict[str, list[int]]  # file name -> pages where the answer appears
+
+
+def first_file_rank_any(retrieved: list[Chunk], expected_files) -> int | None:
+    """1-based rank of the first chunk from any of `expected_files`."""
+    for rank, (name, _) in enumerate(retrieved, start=1):
+        if name in expected_files:
+            return rank
+    return None
+
+
+def first_page_rank_any(retrieved: list[Chunk], locations: Locations) -> int | None:
+    """1-based rank of the first chunk on a page listed for its file in `locations`."""
+    for rank, (name, page) in enumerate(retrieved, start=1):
+        if page in locations.get(name, ()):
+            return rank
+    return None
+
+
+def page_precision_at_k_any(retrieved: list[Chunk], locations: Locations, k: int) -> float:
+    top = retrieved[:k]
+    return sum(page in locations.get(name, ()) for name, page in top) / len(top) if top else 0.0
