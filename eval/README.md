@@ -52,6 +52,23 @@ of the file name, which this count misses. Read the answers.
   Run it with `--show` to read every answer and each unsupported claim.
 - Judge scores hit the ceiling here, so read the answers and use the citation counts, which are the discriminating signal.
 
+## Second corpus: documentation instead of papers
+
+`eval/spring_questions.jsonl` (42 questions) targets the Spring Boot 3.1.12 reference, a very different document type:
+code-heavy, hierarchical, with a table of contents and a properties appendix. Build the corpus and run it:
+
+```bash
+python -m eval.spring_docs ./spring-docs                      # downloads the official PDF and splits it into 112 files
+COLLECTION_NAME=spring_docs DOCS_DIR=./spring-docs/docs python ingest.py
+COLLECTION_NAME=spring_docs python -m eval.run_eval --questions eval/spring_questions.jsonl --strategy similarity
+```
+
+Extra conventions here: `expected_locations` lists every place a fact is documented (a narrative section *and* the
+property appendix; any one counts), and the `paraphrased` category uses everyday wording with none of the docs'
+vocabulary. Multi-section topic sets (`multi_document`) were curated by reading mention counts, since a dependency
+table mentioning a library 49 times is not coverage of that library. The table of contents is deliberately left in
+the index as a realistic noise source.
+
 ## Comparing chat models
 
 `--judge`, `--answers` and `--refusal` generate answers with the configured chat model (`CHAT_PROVIDER` / `CHAT_MODEL`),
@@ -61,6 +78,6 @@ depend on the chat model.
 
 ## Caveats
 
-- Small set (29 questions): one question moves a category by several points.
+- Small sets (42 questions each): one question moves a category by several points.
 - Questions were written from the same text they test, so scores lean optimistic.
 - Answer quality is checked more weakly than retrieval: judge scores are near the ceiling, the judge shares a model family with the generator, and only the citation check is deterministic.

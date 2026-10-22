@@ -121,7 +121,7 @@ Read from environment variables, or from `.env` (real environment variables take
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                                   # 84 unit tests; no database or API key needed
+pytest                                   # 94 unit tests; no database or API key needed
 python -m eval.run_eval --ks 4 8 12 16   # retrieval evaluation (needs the database and OPENAI_API_KEY)
 ```
 
@@ -134,7 +134,18 @@ python -m eval.run_eval --ks 4 8 12 16   # retrieval evaluation (needs the datab
 | Multi-paper questions: share of relevant papers found | 83% | 83% | 94% |
 | Autophagy summary: share of the 6 relevant papers found | 50% | 50% | 83% |
 
-Findings: raising `k` from 4 to 8 improved page-level retrieval; removing bibliographies fixed most of the multi-paper gap and made answers cite the papers themselves instead of entries from their reference lists. MMR (diversified retrieval, measured before bibliographies were removed) helped summaries at k=8 and above but lowered page accuracy on fact questions by 32 points at k=4 and 25 at k=8, so it is not the default (`--strategy mmr` in the eval harness). **Alternative PDF text extractors were tested and not adopted.** pypdfium2 and PyMuPDF removed all 137 glyph-corruption artifacts (e.g. `/H11032` for a prime mark) and cut fused words by 20-30% across the 488 pages, but retrieval did not improve: the same questions were missed, and differences (an exact-term question at k=4, one paper in a multi-paper answer) were within noise. Multi-paper recall at k=8 was slightly lower (89% vs 94%), probably because shifted chunk boundaries change which chunks rank highest. pypdf stays the default; `PDF_EXTRACTOR=pypdfium2` remains as an option. (PyMuPDF is AGPL-licensed and was dropped; pdfplumber lost word spacing and was ruled out.) The exact-term questions exclude fused-token cases, so they cannot see the symbol-corruption benefit.
+Findings: raising `k` from 4 to 8 improved page-level retrieval; removing bibliographies fixed most of the multi-paper gap and made answers cite the papers themselves instead of entries from their reference lists. MMR (diversified retrieval, measured before bibliographies were removed) helped summaries at k=8 and above but lowered page accuracy on fact questions by 32 points at k=4 and 25 at k=8, so it is not the default (`--strategy mmr` in the eval harness). **A second, non-paper corpus.** To check the app is not tied to research papers, the Spring Boot 3.1.12 reference (939 pages, split into 112 PDFs across nested folders) was ingested with the same default settings: nothing was retuned, no pages were mistaken for bibliographies, and the table of contents made up only 3% of retrieved chunks. Retrieval of the right section (`python -m eval.run_eval --questions eval/spring_questions.jsonl`, 42 questions, vector search):
+
+| Question type | k=4 | k=8 |
+|---|---|---|
+| Facts, property names and "which section" questions, using the docs' own wording (26) | 100% | 100% |
+| Everyday phrasing with none of the docs' vocabulary (8) | 62% | 75% |
+| Multi-section topics, share of relevant sections found (4) | 50% | 75% |
+| Out-of-scope questions declined (4) | 4/4 | |
+
+Keyword (BM25) search was worse on the everyday-phrasing questions (38% / 50%), and hybrid search only matched vector search (62% / 62%), so the earlier decision to stay vector-only held on this corpus too. The misses were vocabulary gaps ("requests dropped on redeploy" versus the docs' "graceful shutdown"), and in two cases the retriever returned another section that also answers the question, which a single-passage ground truth counts as a miss. The question set is small and written by the same author who built the corpus, so treat these as indications, not benchmarks.
+
+**Alternative PDF text extractors were tested and not adopted.** pypdfium2 and PyMuPDF removed all 137 glyph-corruption artifacts (e.g. `/H11032` for a prime mark) and cut fused words by 20-30% across the 488 pages, but retrieval did not improve: the same questions were missed, and differences (an exact-term question at k=4, one paper in a multi-paper answer) were within noise. Multi-paper recall at k=8 was slightly lower (89% vs 94%), probably because shifted chunk boundaries change which chunks rank highest. pypdf stays the default; `PDF_EXTRACTOR=pypdfium2` remains as an option. (PyMuPDF is AGPL-licensed and was dropped; pdfplumber lost word spacing and was ruled out.) The exact-term questions exclude fused-token cases, so they cannot see the symbol-corruption benefit.
 
 **Chunk size and a paper-title prefix were tested and not adopted.** Re-ingesting at 300 and 1000 characters (about 10% overlap) gave no clear gain on single-fact questions (page accuracy at k=8 was 94% for all three sizes). Larger chunks hurt multi-paper coverage, since fewer distinct chunks means fewer distinct papers per k (recall at k=8: 94% at 500 characters, 72% at 1000); at roughly equal context size, 300 and 500 characters were about even. Embedding each chunk as "Paper: <title> + text" (while storing and showing only the original text) was clearly worse: multi-paper recall fell to 44% at every k and page accuracy at k=4 from 88% to 69%, because the shared title made every chunk of the best-matching paper outrank other papers' chunks (for two of the three multi-paper questions, all 12 retrieved chunks came from one paper). The defaults (500 characters, 50 overlap, file and page metadata on every chunk) stay.
 
@@ -150,6 +161,10 @@ Findings: raising `k` from 4 to 8 improved page-level retrieval; removing biblio
 Faithfulness scored both versions 1.00, because the outside citations were faithful to the retrieved text (it was a reference-list title); only the citation check caught the misattribution. Context precision (share of the top-k chunks from the right paper) is 94% at k=4 and 89% at k=8 for fact questions, and about 52-58% for exact-term questions. Only about half of the answers cite inline at all (the chat prints a Sources line regardless), and caveats apply: the judge is the same model family as the generator (self-preference bias), and it grades against the retrieved context only.
 
 With only 42 questions, treat differences of a few points as noise; see `eval/README.md` for scoring rules and caveats.
+
+## Purpose
+
+A learning project: I built it to get hands-on with Python and its ecosystem (LangChain, Postgres/pgvector, pytest, Docker) by going past a tutorial-style demo: measuring retrieval quality, testing alternatives, and keeping the results that did not pan out in the write-up.
 
 ## AI assistance
 
