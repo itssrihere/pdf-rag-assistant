@@ -1,3 +1,6 @@
+import sys
+from pathlib import Path
+
 import pytest
 from langchain_core.documents import Document
 
@@ -162,7 +165,7 @@ def test_file_without_extractable_text_is_not_stored(tmp_path, table, monkeypatc
     ingest.ingest(str(tmp_path))
 
     assert table.rows == {}
-    assert "No extractable text in scan.pdf" in capsys.readouterr().out
+    assert "No extractable text in scan.pdf" in capsys.readouterr().err  # warnings go to stderr
 
 
 def test_reset_flag_is_passed_to_build_store(tmp_path, fake_pdf_text, monkeypatch):
@@ -189,3 +192,202 @@ def test_flat_folder_citations_are_unchanged(tmp_path, table, fake_pdf_text):
     make_pdf(tmp_path, "paper.pdf")
     ingest.ingest(str(tmp_path))
     assert {doc.metadata["source_file"] for _, doc in table.rows.values()} == {"paper.pdf"}
+
+
+# --- document limit, failure handling and the end-of-run summary
+
+def failing_loader(*bad_names, error=ValueError("EOF marker not found")):
+    def load(path):
+        if Path(path).name in bad_names:
+            raise error
+        return [Document(page_content="lorem ipsum dolor sit amet " * 8, metadata={"page": 0})]
+    return load
+
+
+def test_one_bad_pdf_is_logged_and_the_rest_are_ingested(tmp_path, table, monkeypatch, capsys):
+    for name in ("a.pdf", "broken.pdf", "c.pdf"):
+        make_pdf(tmp_path, name, name.encode())
+    monkeypatch.setattr(ingest, "load_pages", failing_loader("broken.pdf"))
+
+    result = ingest.ingest(str(tmp_path))
+
+    assert result.added == 2 and result.failed == [("broken.pdf", "ValueError: EOF marker not found")]
+    assert {doc.metadata["source_file"] for _, doc in table.rows.values()} == {"a.pdf", "c.pdf"}  # nothing partial
+    err = capsys.readouterr().err
+    assert "FAILED: broken.pdf: ValueError: EOF marker not found" in err
+    assert "1 PDF(s) FAILED:" in err and "  - broken.pdf: ValueError" in err      # the end-of-run summary
+
+
+def test_a_failure_while_storing_is_handled_like_any_other(tmp_path, table, monkeypatch):
+    make_pdf(tmp_path, "a.pdf", b"a")
+    make_pdf(tmp_path, "b.pdf", b"b")
+    monkeypatch.setattr(ingest, "load_pages", failing_loader())
+    real_add = FakeStore.add_documents
+
+    def flaky_add(self, docs, ids):
+        if docs[0].metadata["source_file"] == "a.pdf":
+            raise RuntimeError("connection reset")
+        real_add(self, docs, ids)
+
+    monkeypatch.setattr(FakeStore, "add_documents", flaky_add)
+    result = ingest.ingest(str(tmp_path))
+    assert result.added == 1 and [name for name, _ in result.failed] == ["a.pdf"]
+
+
+def test_repeated_failures_stop_the_run_early(tmp_path, table, monkeypatch, capsys):
+    for i in range(8):
+        make_pdf(tmp_path, f"f{i}.pdf", str(i).encode())
+    monkeypatch.setattr(ingest, "load_pages", failing_loader(*[f"f{i}.pdf" for i in range(8)], error=ConnectionError("db down")))
+
+    result = ingest.ingest(str(tmp_path))
+
+    assert len(result.failed) == ingest.MAX_CONSECUTIVE_FAILURES
+    assert result.not_attempted == 8 - ingest.MAX_CONSECUTIVE_FAILURES
+    assert "ABORTING" in capsys.readouterr().err
+
+
+def test_a_success_resets_the_consecutive_failure_count(tmp_path, table, monkeypatch):
+    names = ["a.pdf", "b.pdf", "c.pdf", "d.pdf", "e.pdf", "f.pdf", "g.pdf", "h.pdf"]
+    for name in names:
+        make_pdf(tmp_path, name, name.encode())
+    # four failures, a success, four more failures: never five in a row
+    monkeypatch.setattr(ingest, "load_pages", failing_loader("a.pdf", "b.pdf", "c.pdf", "d.pdf", "f.pdf", "g.pdf", "h.pdf"))
+    monkeypatch.setattr(ingest, "MAX_CONSECUTIVE_FAILURES", 5)
+    result = ingest.ingest(str(tmp_path))
+    assert result.added == 1 and len(result.failed) == 7 and result.not_attempted == 0
+
+
+def test_keyboard_interrupt_is_not_swallowed(tmp_path, table, monkeypatch):
+    make_pdf(tmp_path, "a.pdf")
+    monkeypatch.setattr(ingest, "load_pages", failing_loader("a.pdf", error=KeyboardInterrupt()))
+    with pytest.raises(KeyboardInterrupt):
+        ingest.ingest(str(tmp_path))
+
+
+def test_the_document_limit_caps_the_run_and_reports_what_was_left_out(tmp_path, table, fake_pdf_text, capsys):
+    for name in ("a.pdf", "b.pdf", "c.pdf", "d.pdf", "e.pdf"):
+        make_pdf(tmp_path, name, name.encode())
+
+    result = ingest.ingest(str(tmp_path), max_docs=3)
+
+    assert result.added == 3 and result.over_limit == 2
+    assert {doc.metadata["source_file"] for _, doc in table.rows.values()} == {"a.pdf", "b.pdf", "c.pdf"}  # path order
+    err = capsys.readouterr().err
+    assert "limit of 3 PDFs" in err and "2 PDF(s) were beyond the limit of 3" in err
+
+
+def test_rerunning_with_the_same_limit_changes_nothing(tmp_path, table, fake_pdf_text):
+    for name in ("a.pdf", "b.pdf", "c.pdf"):
+        make_pdf(tmp_path, name, name.encode())
+    ingest.ingest(str(tmp_path), max_docs=2)
+    second = ingest.ingest(str(tmp_path), max_docs=2)
+    assert second.added == 0 and second.skipped == 2
+
+
+def test_zero_means_no_limit_and_the_default_comes_from_config(tmp_path, table, fake_pdf_text, monkeypatch):
+    for name in ("a.pdf", "b.pdf", "c.pdf"):
+        make_pdf(tmp_path, name, name.encode())
+    assert ingest.ingest(str(tmp_path), max_docs=0).added == 3
+    monkeypatch.setattr(config, "MAX_DOCS", 1)
+    assert ingest.ingest(str(tmp_path), reset=False).over_limit == 2
+
+
+def test_pdfs_without_text_are_listed_in_the_summary(tmp_path, table, monkeypatch, capsys):
+    make_pdf(tmp_path, "scan.pdf")
+    monkeypatch.setattr(ingest, "load_pages", lambda path: [])
+    result = ingest.ingest(str(tmp_path))
+    assert result.no_text == ["scan.pdf"] and not result.failed
+    assert "had no extractable text" in capsys.readouterr().err
+
+
+def test_a_clean_run_prints_no_problem_summary(tmp_path, table, fake_pdf_text, capsys):
+    make_pdf(tmp_path, "a.pdf")
+    ingest.ingest(str(tmp_path))
+    assert capsys.readouterr().err == ""
+
+
+def test_cli_exits_with_status_1_when_any_pdf_failed(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["ingest.py", "--docs-dir", "somewhere"])
+    monkeypatch.setattr(ingest, "ingest", lambda *a, **k: ingest.IngestResult(failed=[("x.pdf", "boom")]))
+    with pytest.raises(SystemExit) as exit_info:
+        ingest.main()
+    assert exit_info.value.code == 1
+    monkeypatch.setattr(ingest, "ingest", lambda *a, **k: ingest.IngestResult(added=2))
+    with pytest.raises(SystemExit) as exit_info:
+        ingest.main()
+    assert exit_info.value.code == 0
+
+
+# --- connectivity problems with the embeddings API
+
+def openai_errors():
+    import httpx
+    import openai
+
+    request = httpx.Request("POST", "https://api.openai.com/v1/embeddings")
+    return {
+        "connection": openai.APIConnectionError(request=request),
+        "timeout": openai.APITimeoutError(request=request),
+        "rate_limit": openai.RateLimitError("Rate limit reached", response=httpx.Response(429, request=request), body=None),
+        "server": openai.InternalServerError("upstream error", response=httpx.Response(500, request=request), body=None),
+    }
+
+
+@pytest.mark.parametrize("kind", ["connection", "timeout", "rate_limit", "server"])
+def test_openai_embedding_errors_are_logged_and_ingestion_moves_on(tmp_path, table, monkeypatch, capsys, kind):
+    make_pdf(tmp_path, "a.pdf", b"a")
+    make_pdf(tmp_path, "b.pdf", b"b")
+    monkeypatch.setattr(ingest, "load_pages", failing_loader())
+    error = openai_errors()[kind]
+    real_add = FakeStore.add_documents
+
+    def add(self, docs, ids):  # the embeddings call happens inside add_documents, before anything is written
+        if docs[0].metadata["source_file"] == "a.pdf":
+            raise error
+        real_add(self, docs, ids)
+
+    monkeypatch.setattr(FakeStore, "add_documents", add)
+    result = ingest.ingest(str(tmp_path))
+
+    assert result.added == 1 and [name for name, _ in result.failed] == ["a.pdf"]
+    assert type(error).__name__ in result.failed[0][1]
+    assert {doc.metadata["source_file"] for _, doc in table.rows.values()} == {"b.pdf"}   # a.pdf left nothing behind
+    assert f"FAILED: a.pdf: {type(error).__name__}" in capsys.readouterr().err
+
+
+def test_the_underlying_network_cause_is_shown(tmp_path, table, monkeypatch):
+    import httpx
+    import openai
+
+    make_pdf(tmp_path, "a.pdf")
+    monkeypatch.setattr(ingest, "load_pages", failing_loader())
+    wrapped = openai.APIConnectionError(request=httpx.Request("POST", "https://api.openai.com"))
+    wrapped.__cause__ = httpx.ReadError("[SSL: SSLV3_ALERT_BAD_RECORD_MAC] ssl/tls alert bad record mac")
+
+    def add(self, docs, ids):
+        raise wrapped
+
+    monkeypatch.setattr(FakeStore, "add_documents", add)
+    message = ingest.ingest(str(tmp_path)).failed[0][1]
+    assert "APIConnectionError" in message and "caused by ReadError" in message and "bad record mac" in message
+
+
+def test_a_temporary_outage_that_ends_loses_nothing_on_rerun(tmp_path, table, monkeypatch):
+    for name in ("a.pdf", "b.pdf", "c.pdf"):
+        make_pdf(tmp_path, name, name.encode())
+    monkeypatch.setattr(ingest, "load_pages", failing_loader())
+    outage = {"on": True}
+    real_add = FakeStore.add_documents
+
+    def add(self, docs, ids):
+        if outage["on"] and docs[0].metadata["source_file"] != "a.pdf":
+            raise openai_errors()["connection"]
+        real_add(self, docs, ids)
+
+    monkeypatch.setattr(FakeStore, "add_documents", add)
+    first = ingest.ingest(str(tmp_path))
+    assert first.added == 1 and len(first.failed) == 2
+
+    outage["on"] = False
+    second = ingest.ingest(str(tmp_path))
+    assert second.added == 2 and second.skipped == 1 and not second.failed          # only the failed files are retried

@@ -27,6 +27,7 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-rag}
       POSTGRES_HOST: db
       COLLECTION_NAME: ${COLLECTION_NAME:-pdf_docs}
+      MAX_DOCS: ${MAX_DOCS:-500}
       DOCS_DIR: /docs
     volumes:
       - ${DOCS_DIR:-./docs}:/docs

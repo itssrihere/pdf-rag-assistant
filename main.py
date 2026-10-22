@@ -26,6 +26,12 @@ def main():
         help="Embed bibliographies too (dropped by default)",
     )
     parser.add_argument(
+        "--max-docs",
+        type=int,
+        default=None,
+        help="Process at most this many PDFs, in path order (default: MAX_DOCS, 500; 0 = no limit)",
+    )
+    parser.add_argument(
         "--reset",
         action="store_true",
         help="Delete existing collection before ingesting",
@@ -33,7 +39,10 @@ def main():
     args = parser.parse_args()
 
     print(f"\nScanning {args.docs_dir} for PDFs...")
-    ingest(args.docs_dir, reset=args.reset, keep_references=args.keep_references)
+    result = ingest(args.docs_dir, reset=args.reset, keep_references=args.keep_references, max_docs=args.max_docs)
+    if result.failed or result.not_attempted:
+        print(f"\nNote: {len(result.failed)} PDF(s) failed and {result.not_attempted} were not attempted (see above); "
+              "answers will only cover the documents that were stored.")
 
     print("\nConnecting to vector store...")
     retriever, llm = build_retriever_and_llm()

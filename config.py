@@ -32,5 +32,6 @@ CHUNK_OVERLAP = int(os.environ.get("CHUNK_OVERLAP", "50"))
 RETRIEVAL_K = int(os.environ.get("RETRIEVAL_K", "8"))
 COLLECTION_NAME = os.environ.get("COLLECTION_NAME", "pdf_docs")
 PDF_EXTRACTOR = os.environ.get("PDF_EXTRACTOR", "pypdf")  # pypdf | pypdfium2 (see pdf_text.py)
+MAX_DOCS = int(os.environ.get("MAX_DOCS", "500"))  # most PDFs one ingest run will process; 0 = no limit
 HISTORY_TURNS = int(os.environ.get("HISTORY_TURNS", "5"))  # past Q&A pairs remembered in chat
 
