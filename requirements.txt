@@ -1,10 +1,10 @@
-langchain==0.3.25
-langchain-community==0.3.24
+langchain==0.3.30
+langchain-community==0.3.31
 langchain-anthropic==0.3.22
 langchain-openai==0.3.16
 langchain-postgres==0.0.17
-langchain-text-splitters==0.3.8
+langchain-text-splitters==0.3.11
 openai==1.82.0
 psycopg[binary]>=3.2.10
-pypdf==5.4.0
+pypdf==6.21.2
 python-dotenv>=1.0

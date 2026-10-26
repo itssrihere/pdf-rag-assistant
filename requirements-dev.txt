@@ -2,3 +2,4 @@
 pytest>=8
 rank-bm25>=0.2.2  # hybrid.py (keyword-search experiment; not used by the chatbot)
 pypdfium2  # optional PDF_EXTRACTOR=pypdfium2 backend (BSD/Apache)
+pip-audit  # known-vulnerability scan: pip-audit --skip-editable
