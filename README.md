@@ -171,6 +171,17 @@ A learning project: I built it to get hands-on with Python and its ecosystem (La
 
 This project was built with Claude Code (Anthropic). I set the goals, made the design decisions, and judged the results; Claude Code wrote most of the code and tests under that direction. Every number in this README comes from runs of the included evaluation, and the experiments that did not help are reported alongside the ones that did.
 
+## Security notes
+
+This is a local command-line tool, not a service, but it still handles secrets, untrusted files and third-party APIs:
+
+- **Secrets:** API keys and the database password live in `.env` (git-ignored); nothing is hard-coded, and Compose refuses to start without a password. The database port is bound to localhost only.
+- **PDFs are untrusted input.** They are parsed with `pypdf`, pinned to a release with no known advisories when it was chosen (the older 5.4.0 had 96). Ingest PDFs you trust, or run ingestion in the container; `MAX_DOCS` bounds a run, and a file that crashes the parser is skipped, not fatal.
+- **Prompt injection:** text inside a document can try to steer the model. The model here has no tools, so the worst case is a misleading answer, not an action. Answers are grounded in your documents, not verified against the truth.
+- **Data leaves your machine:** document chunks and your questions are sent to the embedding provider (OpenAI) and the chat provider (OpenAI or Anthropic). Do not ingest anything you could not send to them.
+- **Dependencies:** check with `pip-audit --skip-editable` (in `requirements-dev.txt`). After upgrading `pypdf`, `aiohttp`, `urllib3` and other patch-level packages, 15 advisories remain in six LangChain-family packages whose fixes exist only in LangChain 1.x; that is a major migration and has not been done.
+- **Not hardened for exposure:** there is no authentication, rate limiting or input-size limiting, the app connects as the Postgres superuser, and the container runs as root. Fine on a laptop; change all four before putting any of it behind a network service.
+
 ## Notes and limitations
 
 - **One bad PDF doesn't stop ingestion.** A file that fails (corrupt, unreadable, or an OpenAI connection, timeout or rate-limit error while embedding) is logged to stderr with its root cause and skipped, and a summary at the end lists every failure, every PDF with no extractable text (scans; there is no OCR), and anything left out by `MAX_DOCS`. `python ingest.py` exits with status 1 if any file failed. Five failures in a row stop the run early, since that usually means the database or API key is the problem (with the client's retries that takes a couple of minutes during a total outage). A failed file leaves nothing partial behind, so re-running retries only what is missing. In the chat, a question that fails (for example the API is unreachable) prints an error and the session continues.
