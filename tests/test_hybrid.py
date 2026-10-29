@@ -70,6 +70,13 @@ def test_hybrid_includes_chunks_only_the_keyword_index_found():
     assert {d.id for d in retriever.search("unique-token-xyz", k=5)} == {"v1", "k1"}  # dense found v1, BM25 found k1
 
 
+def test_rrf_needs_exactly_one_weight_per_ranking():
+    import pytest
+
+    with pytest.raises(ValueError):
+        hybrid.rrf_fuse([["a"], ["b"]], weights=[1.0])
+
+
 def test_rrf_weights_let_one_list_dominate():
     lists = [["a", "b"], ["x"]]
     assert hybrid.rrf_fuse(lists, top=1)[0] == "a"                       # equal weight: rank-1 tie goes to the first list

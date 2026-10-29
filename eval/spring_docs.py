@@ -89,8 +89,10 @@ def main():
         args.out_dir.mkdir(parents=True, exist_ok=True)
         pdf = args.out_dir / "spring-boot-reference-3.1.12.pdf"
         if not pdf.exists():
+            if not URL.startswith("https://"):  # keep urlretrieve from ever opening file:// or other schemes
+                raise ValueError(f"refusing to download from a non-https URL: {URL}")
             print(f"Downloading {URL} ...")
-            urllib.request.urlretrieve(URL, pdf)
+            urllib.request.urlretrieve(URL, pdf)  # nosec B310 - constant https URL, checked above
     count = split(pdf, args.out_dir / "docs")
     print(f"Wrote {count} PDFs to {args.out_dir / 'docs'}")
     print(f"Next: COLLECTION_NAME=spring_docs DOCS_DIR={args.out_dir / 'docs'} python ingest.py\n"

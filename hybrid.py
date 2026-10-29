@@ -37,7 +37,7 @@ def rrf_fuse(rankings: list[list[str]], top: int | None = None, k: int = RRF_K,
     weights = weights or [1.0] * len(rankings)
     scores: dict[str, float] = defaultdict(float)
     first_seen: dict[str, int] = {}
-    for ranking, weight in zip(rankings, weights):
+    for ranking, weight in zip(rankings, weights, strict=True):  # one weight per ranking
         for rank, key in enumerate(ranking, start=1):
             scores[key] += weight / (k + rank)
             first_seen.setdefault(key, len(first_seen))

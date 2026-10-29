@@ -29,7 +29,7 @@ class FakeStore:
 
     def add_documents(self, docs, ids):
         self.table.add_calls += 1
-        for doc, id_ in zip(docs, ids):
+        for doc, id_ in zip(docs, ids, strict=True):
             self.table.rows[id_] = (self.collection, doc)
 
 
@@ -196,7 +196,9 @@ def test_flat_folder_citations_are_unchanged(tmp_path, table, fake_pdf_text):
 
 # --- document limit, failure handling and the end-of-run summary
 
-def failing_loader(*bad_names, error=ValueError("EOF marker not found")):
+def failing_loader(*bad_names, error=None):
+    error = error or ValueError("EOF marker not found")
+
     def load(path):
         if Path(path).name in bad_names:
             raise error

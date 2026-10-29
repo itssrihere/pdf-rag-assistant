@@ -174,13 +174,14 @@ def evaluate_answers(questions: list[dict], k: int, judge_model: str, show: bool
     print(f"\n== answer quality at k={k} (judge: {judge_model}; {len(out)} answers)")
     for category in dict.fromkeys(v["category"] for v in out.values()):
         rows = [v for v in out.values() if v["category"] == category]
-        tot = lambda key: sum(r["citations"][key] for r in rows)
+        totals = {key: sum(r["citations"][key] for r in rows)
+                  for key in ("total", "grounded", "page_correct", "outside", "unmatched", "unnamed")}
         cited_answers = sum(r["citations"]["total"] > 0 for r in rows)
         print(f"   {category:<15} n={len(rows):<2} faithfulness {mean(r['faithfulness']['score'] for r in rows):.2f}   "
               f"relevancy {mean(r['relevancy']['score'] for r in rows):.1f}/5   "
-              f"{cited_answers}/{len(rows)} answers cite; {tot('grounded')}/{tot('total')} citations grounded, "
-              f"{tot('page_correct')} page-correct, {tot('outside')} outside author-year, {tot('unmatched')} unmatched, "
-              f"{tot('unnamed')} unnamed")
+              f"{cited_answers}/{len(rows)} answers cite; {totals['grounded']}/{totals['total']} citations grounded, "
+              f"{totals['page_correct']} page-correct, {totals['outside']} outside author-year, "
+              f"{totals['unmatched']} unmatched, {totals['unnamed']} unnamed")
     return out
 
 
