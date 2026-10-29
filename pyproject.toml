@@ -1,0 +1,16 @@
+# Tool configuration only (the project is not packaged). pytest settings live in pytest.ini.
+
+[tool.ruff]
+target-version = "py312"
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+# E/F: errors and pyflakes, B: bugbear (likely bugs), S: bandit-style security rules, UP: outdated idioms
+select = ["E", "F", "B", "S", "UP"]
+ignore = ["E501"]  # line length: long prose strings and prompts are deliberate
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]  # plain asserts are how pytest tests are written
+
+[tool.bandit]
+exclude_dirs = [".venv", "tests"]
