@@ -6,11 +6,16 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     ignore:
-      # LangChain 1.x is a major migration (see scripts/audit.sh); do not open PRs for it automatically
+      # The LangChain 0.3 packages are pinned as a set (see scripts/audit.sh). For 0.x packages a minor bump
+      # (0.3 -> 0.4) is a breaking change, and 0.4+ needs langchain-core 1.x, which cannot resolve against the
+      # rest. Allow patch updates only until the LangChain 1.x migration is done.
       - dependency-name: "langchain*"
-        update-types: ["version-update:semver-major"]
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: "langsmith"
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      # langchain-openai 0.3.x needs openai < 2
+      - dependency-name: "openai"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
