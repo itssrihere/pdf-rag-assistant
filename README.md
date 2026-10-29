@@ -1,5 +1,7 @@
 # pdf-rag-assistant
 
+[![CI](https://github.com/itssrihere/pdf-rag-assistant/actions/workflows/ci.yml/badge.svg)](https://github.com/itssrihere/pdf-rag-assistant/actions/workflows/ci.yml)
+
 A terminal RAG chatbot: point it at a folder of PDFs, then ask questions and get answers with file and page citations.
 
 ## Quick start
@@ -122,7 +124,7 @@ Read from environment variables, or from `.env` (real environment variables take
 
 ```bash
 pip install -r requirements-dev.txt
-pytest                                   # 112 unit tests; no database or API key needed
+pytest                                   # 113 unit tests; no database or API key needed
 python -m eval.run_eval --ks 4 8 12 16   # retrieval evaluation (needs the database and OPENAI_API_KEY)
 ```
 
@@ -170,6 +172,18 @@ A learning project: I built it to get hands-on with Python and its ecosystem (La
 ## AI assistance
 
 This project was built with Claude Code (Anthropic). I set the goals, made the design decisions, and judged the results; Claude Code wrote most of the code and tests under that direction. Every number in this README comes from runs of the included evaluation, and the experiments that did not help are reported alongside the ones that did.
+
+## Development checks
+
+```bash
+pip install -r requirements-dev.txt
+ruff check .                         # lint: likely bugs and security rules (config in pyproject.toml)
+bandit -q -c pyproject.toml -r .     # static security scan (SAST)
+pytest -q                            # unit tests; no database, API keys or network needed
+scripts/audit.sh                     # dependency vulnerabilities (pip-audit must be on the PATH)
+```
+
+GitHub Actions (`.github/workflows/ci.yml`) runs the first three on every push and pull request, and the dependency audit on every push and weekly, since new advisories appear without any code change. `scripts/audit.sh` lists the 15 advisories accepted until the LangChain 1.x migration (with the reason), so a *new* advisory fails the build. Dependabot (`.github/dependabot.yml`) proposes weekly updates for Python packages, GitHub Actions and the Docker base image, skipping the LangChain major versions.
 
 ## Security notes
 

@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"   # weekly: new advisories appear without any code change
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Lint, security scan, tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Install
+        run: pip install -r requirements-dev.txt
+      - name: Lint (bugs and security rules)
+        run: ruff check .
+      - name: Static security scan
+        run: bandit -q -c pyproject.toml -r .
+      - name: Tests (no database, keys or network needed)
+        run: pytest -q
+
+  audit:
+    name: Dependency vulnerability scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements*.txt
+      - name: Install runtime dependencies only
+        run: pip install -r requirements.txt
+      - name: Install pip-audit in its own isolated environment
+        run: pipx install pip-audit
+      - name: Audit (accepted advisories are listed in scripts/audit.sh)
+        run: scripts/audit.sh
