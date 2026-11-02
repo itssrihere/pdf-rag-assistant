@@ -6,16 +6,13 @@ updates:
       interval: weekly
     open-pull-requests-limit: 5
     ignore:
-      # The LangChain 0.3 packages are pinned as a set (see scripts/audit.sh). For 0.x packages a minor bump
-      # (0.3 -> 0.4) is a breaking change, and 0.4+ needs langchain-core 1.x, which cannot resolve against the
-      # rest. Allow patch updates only until the LangChain 1.x migration is done.
+      # The LangChain packages are pinned together as a set on the 0.3 line, and each one's newer releases
+      # (including langchain-postgres 0.0.19 and langchain-openai 0.3.35) need langchain-core 1.x or a newer
+      # openai, so single-package PRs cannot resolve. Hold the whole family, plus openai and langsmith, until the
+      # LangChain 1.x migration is done; the weekly pip-audit job (scripts/audit.sh) still flags vulnerabilities.
       - dependency-name: "langchain*"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: "langsmith"
-        update-types: ["version-update:semver-major", "version-update:semver-minor"]
-      # langchain-openai 0.3.x needs openai < 2
       - dependency-name: "openai"
-        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
