@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:   # lets you start a run by hand from the Actions tab
   schedule:
     - cron: "0 6 * * 1"   # weekly: new advisories appear without any code change
 
