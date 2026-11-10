@@ -21,6 +21,87 @@ python main.py           # ingest PDFs, then chat
 
 The first run embeds every PDF (small OpenAI cost); later runs skip PDFs already stored. Details below.
 
+## Demo
+
+A real run over the public Spring Boot 3.1.12 reference documentation (939 pages, split into 112 PDFs in nested folders by `python -m eval.spring_docs`). The questions were scripted; the output is unedited apart from wrapping long lines, eliding the middle of the ingest listing (`...`), and shortening each `Sources:` list, which in reality names every retrieved chunk's file and page. Every claim in the answers was checked against the source PDFs.
+
+```
+$ COLLECTION_NAME=demo DOCS_DIR=./spring-docs/docs python ingest.py
+Found 112 PDF(s), including subfolders
+  Loading: 00-front-matter/table-of-contents.pdf
+  Stored 294 chunks from 23 pages
+  Loading: 01-legal/legal.pdf
+  Stored 1 chunks from 1 pages
+  Loading: 02-getting-help/getting-help.pdf
+  Stored 2 chunks from 1 pages
+  ...
+Done. 112 PDF(s) ingested, 0 skipped.
+```
+
+```
+$ COLLECTION_NAME=demo python query.py
+RAG PDF Assistant — type 'exit' or 'quit' to stop
+
+Ask: How do I make my app finish in-flight requests before it shuts down?
+
+Answer:
+To ensure your application finishes in-flight requests before shutting down, you can implement a
+  graceful shutdown process. This involves configuring a timeout that allows existing requests to
+  complete while preventing new requests from being accepted.
+In Spring Boot, graceful shutdown is supported with all embedded web servers (Jetty, Reactor Netty,
+  Tomcat, and Undertow). During the shutdown process, the application context is closed, and a grace
+  period is provided for existing requests to finish. You can also configure a `preStop` handler
+  with a sleep execution to avoid routing new requests to a pod that is already shutting down.
+Additionally, you may need to adjust the `spring.lifecycle.timeout-per-shutdown-phase` property to
+  control the duration of the shutdown phase, and ensure that the termination grace period in your
+  Pod YAML is set appropriately if using Kubernetes (e.g., `terminationGracePeriodSeconds`).
+For more details, refer to the following sources:
+- [14-deploying-spring-boot-applications/14-1-deploying-to-the-cloud.pdf, p. 4-5]
+- [08-web/8-3-graceful-shutdown.pdf, p. 1]
+Sources: 04-getting-started/4-5-what-to-read-next.pdf (p. 1);
+  06-developing-with-spring-boot/6-8-developer-tools.pdf (p. 3); ... (6 sources in all)
+
+Ask: Does that work with Tomcat?
+
+Answer:
+Yes, graceful shutdown works with Tomcat, but it requires Tomcat version 9.0.33 or later. You can
+  enable graceful shutdown by configuring the `server.shutdown` property to "graceful". During the
+  shutdown process, Tomcat will stop accepting new requests at the network layer, allowing existing
+  requests to complete within the configured timeout period.
+For more details, refer to the source: [08-web/8-3-graceful-shutdown.pdf, p. 1].
+Sources: 08-web/8-1-servlet-web-applications.pdf (pp. 1, 27); 08-web/8-3-graceful-shutdown.pdf (p.
+  1); ... (5 sources in all)
+
+Ask: What values does management.endpoint.health.show-details accept?
+
+Answer:
+The `management.endpoint.health.show-details` property accepts the following values:
+1. **never** - Details are never shown.
+2. **when-authorized** - Details are shown only to authorized users. Authorized roles can be
+  configured using `management.endpoint.health.roles`.
+3. **always** - Details are shown to all users.
+The default value is **never**. 
+For more information, refer to the source:
+  [13-production-ready-features/13-1-enabling-production-ready-features.pdf, p. 15].
+Sources: 13-production-ready-features/13-1-enabling-production-ready-features.pdf (pp. 9, 10, 15,
+  22); 19-appendices/appendix-a-common-application-properties.pdf (p. 109)
+
+Ask: How do I train a neural network with PyTorch?
+
+Answer:
+The provided documents do not contain information on how to train a neural network with PyTorch.
+  Therefore, I cannot provide an answer based on the available sources.
+Sources: 03-documentation-overview/3-5-web.pdf (p. 1);
+  04-getting-started/4-4-developing-your-first-spring-boot-application.pdf (pp. 1, 2, 3); ... (6
+  sources in all)
+
+Ask: exit
+
+Goodbye.
+```
+
+Note the follow-up (`Does that work with Tomcat?` is answered in the context of the first question), an exact property lookup, and the refusal when the documents don't cover the question.
+
 ## How it works
 
 1. **Ingest** (`ingest.py`): each PDF is split into overlapping chunks, embedded with OpenAI, and stored in Postgres/pgvector. Bibliographies are dropped first (see below). Chunk IDs are `<collection>:<sha256 of file>:<index>`, so PDFs already stored are skipped (no duplicates, no repeat embedding cost), and the same PDF can live in several collections. Renaming a file doesn't trigger re-ingestion.
@@ -63,24 +144,6 @@ Other options:
 ```bash
 python main.py --docs-dir /path/to/pdfs --reset   # wipe the collection and re-ingest
 python main.py --keep-references                  # also embed bibliographies (dropped by default)
-```
-
-Example session:
-
-```
-  Skipping (already ingested): old.pdf
-  Loading: report.pdf
-  Stored 187 chunks from 42 pages
-Done. 1 PDF(s) ingested, 1 skipped.
-
-Ask: What is the main topic?
-
-Answer:
-The document covers ...
-
-Sources: report.pdf (pp. 3, 7)
-
-Ask: And how was it evaluated?      # follow-up uses chat history
 ```
 
 ## Docker Compose (app + database)
