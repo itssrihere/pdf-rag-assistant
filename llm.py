@@ -1,4 +1,4 @@
-"""Chat-model factory: Claude (default) or OpenAI, selected by CHAT_PROVIDER. Embeddings are always OpenAI."""
+"""Chat-model factory: OpenAI (default) or Claude, selected by CHAT_PROVIDER. Embeddings are always OpenAI."""
 
 import config
 

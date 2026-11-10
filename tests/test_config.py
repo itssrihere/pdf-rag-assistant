@@ -35,3 +35,18 @@ def test_missing_password_raises_clear_error():
 
 def test_empty_db_url_falls_back_to_parts():
     assert _build_db_url({"DB_URL": "", "POSTGRES_PASSWORD": "pw"}).startswith("postgresql+psycopg://postgres:pw@")
+
+
+def test_chat_provider_defaults_to_openai_in_code_and_in_compose():
+    """The default must be the provider that has been run live, and compose must agree with config.py."""
+    import ast
+    import re
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parent.parent
+    default = None
+    for node in ast.walk(ast.parse((root / "config.py").read_text())):
+        if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "CHAT_PROVIDER":
+            default = node.value.args[1].value  # os.environ.get("CHAT_PROVIDER", <default>)
+    assert default == "openai"
+    assert re.search(r"CHAT_PROVIDER: \$\{CHAT_PROVIDER:-openai\}", (root / "docker-compose.yml").read_text())

@@ -13,7 +13,7 @@ def settings(monkeypatch):
     monkeypatch.setattr(config, "ANTHROPIC_API_KEY", "test-anthropic-key")
 
 
-def test_defaults_to_claude_haiku_with_temperature_zero(settings):
+def test_anthropic_provider_uses_claude_haiku_with_temperature_zero(settings):
     model = llm.make_chat_model()
     assert type(model).__name__ == "ChatAnthropic"
     assert model.model == "claude-haiku-4-5" and model.temperature == 0

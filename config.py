@@ -21,9 +21,9 @@ def _build_db_url(env: Mapping[str, str] = os.environ) -> str:
     return f"postgresql+psycopg://{quote_plus(user)}:{quote_plus(password)}@{host}:{port}/{db}"
 
 
-OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]  # embeddings (and chat if CHAT_PROVIDER=openai)
+OPENAI_API_KEY = os.environ["OPENAI_API_KEY"]  # embeddings, and chat by default
 ANTHROPIC_API_KEY = os.environ.get("ANTHROPIC_API_KEY")  # chat, when CHAT_PROVIDER=anthropic
-CHAT_PROVIDER = os.environ.get("CHAT_PROVIDER", "anthropic")  # anthropic | openai
+CHAT_PROVIDER = os.environ.get("CHAT_PROVIDER", "openai")  # openai | anthropic (anthropic is experimental)
 CHAT_MODEL = os.environ.get("CHAT_MODEL")  # default depends on the provider (see llm.py)
 DB_URL = _build_db_url()
 DOCS_DIR = os.environ.get("DOCS_DIR")  # no default — must be passed via --docs-dir or env var

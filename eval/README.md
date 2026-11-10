@@ -72,8 +72,9 @@ the index as a realistic noise source.
 ## Comparing chat models
 
 `--judge`, `--answers` and `--refusal` generate answers with the configured chat model (`CHAT_PROVIDER` / `CHAT_MODEL`),
-so the same questions can be run against Claude and OpenAI. The faithfulness, relevancy and refusal judges are always
-`gpt-4o-mini` (`--judge-model`), independent of the answer model whenever Claude is answering. Retrieval metrics don't
+so the same questions can be run against OpenAI (the default) and Claude. The faithfulness, relevancy and refusal judges
+are always `gpt-4o-mini` (`--judge-model`): independent of the answer model when `CHAT_PROVIDER=anthropic`, but the same
+model as the generator by default, which is a self-preference caveat. Retrieval metrics don't
 depend on the chat model.
 
 ## Caveats

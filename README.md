@@ -6,7 +6,7 @@ A terminal RAG chatbot: point it at a folder of PDFs, then ask questions and get
 
 ## Quick start
 
-Requires Python 3.12+, Docker, an OpenAI API key (embeddings), an Anthropic API key (Claude answers; or set `CHAT_PROVIDER=openai`), and a folder of PDFs.
+Requires Python 3.12+, Docker, an OpenAI API key (used for embeddings and, by default, the chat model), and a folder of PDFs.
 
 ```bash
 git clone https://github.com/itssrihere/pdf-rag-assistant.git && cd pdf-rag-assistant
@@ -14,7 +14,7 @@ git clone https://github.com/itssrihere/pdf-rag-assistant.git && cd pdf-rag-assi
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-cp .env.example .env     # set OPENAI_API_KEY, ANTHROPIC_API_KEY, POSTGRES_PASSWORD (any value), DOCS_DIR
+cp .env.example .env     # set OPENAI_API_KEY, POSTGRES_PASSWORD (any value), DOCS_DIR
 docker compose up db -d  # Postgres + pgvector on localhost:5432
 python main.py           # ingest PDFs, then chat
 ```
@@ -24,7 +24,7 @@ The first run embeds every PDF (small OpenAI cost); later runs skip PDFs already
 ## How it works
 
 1. **Ingest** (`ingest.py`): each PDF is split into overlapping chunks, embedded with OpenAI, and stored in Postgres/pgvector. Bibliographies are dropped first (see below). Chunk IDs are `<collection>:<sha256 of file>:<index>`, so PDFs already stored are skipped (no duplicates, no repeat embedding cost), and the same PDF can live in several collections. Renaming a file doesn't trigger re-ingestion.
-2. **Query** (`query.py`): the top `RETRIEVAL_K` chunks are retrieved and passed to the chat model (Claude Haiku 4.5 by default; OpenAI selectable), which answers only from them. Sources print as `file.pdf (pp. 3, 7)` (physical PDF pages, which can differ from printed page numbers).
+2. **Query** (`query.py`): the top `RETRIEVAL_K` chunks are retrieved and passed to the chat model (OpenAI `gpt-4o-mini` by default; Claude is selectable but experimental), which answers only from them. Sources print as `file.pdf (pp. 3, 7)` (physical PDF pages, which can differ from printed page numbers).
 3. **Memory**: the last `HISTORY_TURNS` Q&A pairs are remembered. Follow-ups are rewritten into standalone questions before retrieval (one extra LLM call per follow-up). Single-question mode (`-q`) has no history.
 
 `main.py` runs ingest, then the interactive chat. Type `exit` or `quit` to stop.
@@ -37,7 +37,7 @@ pdf-rag-assistant/
 ├── config.py          # Settings from environment / .env
 ├── ingest.py          # Load, chunk, embed, store (also runnable standalone)
 ├── query.py           # Retrieval, memory, chat loop (also runnable standalone)
-├── llm.py             # Chat-model factory: Claude (default) or OpenAI
+├── llm.py             # Chat-model factory: OpenAI (default) or Claude (experimental)
 ├── pdf_text.py        # PDF text extraction (pypdf default; optional pypdfium2)
 ├── hybrid.py          # BM25 + vector retrieval experiment (not used by the chatbot)
 ├── eval/              # Retrieval evaluation: questions, metrics, runner (see eval/README.md)
@@ -89,7 +89,7 @@ Ask: And how was it evaluated?      # follow-up uses chat history
 docker compose up --build         # DOCS_DIR (from .env) is mounted at /docs
 ```
 
-Compose fails fast if `POSTGRES_PASSWORD` or `OPENAI_API_KEY` is unset; `ANTHROPIC_API_KEY` is needed too unless `CHAT_PROVIDER=openai`.
+Compose fails fast if `POSTGRES_PASSWORD` or `OPENAI_API_KEY` is unset; `ANTHROPIC_API_KEY` is only needed with `CHAT_PROVIDER=anthropic`.
 
 ## Running steps separately
 
@@ -105,9 +105,9 @@ Read from environment variables, or from `.env` (real environment variables take
 
 | Variable | Default | Description |
 |---|---|---|
-| `OPENAI_API_KEY` | *(required)* | OpenAI API key; always used for embeddings (Anthropic has no embedding model), and for chat if `CHAT_PROVIDER=openai` |
-| `ANTHROPIC_API_KEY` | *(required unless `CHAT_PROVIDER=openai`)* | Anthropic API key for chat |
-| `CHAT_PROVIDER` / `CHAT_MODEL` | `anthropic` / `claude-haiku-4-5` | `openai` selects `gpt-4o-mini`; `CHAT_MODEL` overrides the model. Newer Claude models (Sonnet/Opus 5.x) reject a custom temperature, so it is only sent to models that accept it |
+| `OPENAI_API_KEY` | *(required)* | OpenAI API key; used for embeddings (Anthropic has no embedding model) and, by default, for chat |
+| `ANTHROPIC_API_KEY` | *(only with `CHAT_PROVIDER=anthropic`)* | Anthropic API key for chat |
+| `CHAT_PROVIDER` / `CHAT_MODEL` | `openai` / `gpt-4o-mini` | `anthropic` selects Claude (default model `claude-haiku-4-5`). The Claude path is unit-tested but has not been run against the live API, so treat it as experimental. Newer Claude models (Sonnet/Opus 5.x) reject a custom temperature, so it is only sent to models that accept it. `CHAT_MODEL` must belong to the chosen provider |
 | `POSTGRES_PASSWORD` | *(required unless `DB_URL` set)* | Postgres password |
 | `POSTGRES_USER` / `POSTGRES_DB` | `postgres` / `rag` | Postgres user and database |
 | `POSTGRES_HOST` / `POSTGRES_PORT` | `localhost` / `5432` | Compose sets host to `db` for the app container |
