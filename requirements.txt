@@ -6,6 +6,6 @@ langchain-postgres==0.0.17
 langchain-text-splitters==0.3.11
 openai==1.82.0
 psycopg[binary]>=3.3.6
-pypdf==6.21.4
+pypdf==7.0.0
 fonttools==4.68.0  # lets pypdf decode CFF Type1 fonts; without it pypdf logs one message per such font
 python-dotenv>=1.2.4
