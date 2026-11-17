@@ -47,7 +47,7 @@ jobs:
         run: pip install -r requirements.txt
       - name: Install pip-audit in its own isolated environment
         run: pipx install pip-audit
-      - name: Audit (accepted advisories are listed in scripts/audit.sh)
+      - name: Audit (any known advisory fails the build)
         run: scripts/audit.sh
 
   docker:

@@ -246,7 +246,7 @@ pytest -q                            # unit tests; no database, API keys or netw
 scripts/audit.sh                     # dependency vulnerabilities (pip-audit must be on the PATH)
 ```
 
-GitHub Actions (`.github/workflows/ci.yml`) runs the first three on every push and pull request, and the dependency audit on every push and weekly, since new advisories appear without any code change. `scripts/audit.sh` lists the 15 advisories accepted until the LangChain 1.x migration (with the reason), so a *new* advisory fails the build. A fourth job builds the Docker image and checks that the app imports inside it, so a base-image or dependency bump that breaks the container fails CI (a Python 3.15 base image once did, unnoticed, because nothing built the image). Dependabot (`.github/dependabot.yml`) proposes weekly updates for Python packages, GitHub Actions and the Docker base image, skipping the LangChain major versions.
+GitHub Actions (`.github/workflows/ci.yml`) runs the first three on every push and pull request, and the dependency audit on every push and weekly, since new advisories appear without any code change. `scripts/audit.sh` fails the build on any known advisory (nothing is currently ignored). A fourth job builds the Docker image and checks that the app imports inside it, so a base-image or dependency bump that breaks the container fails CI (a Python 3.15 base image once did, unnoticed, because nothing built the image). Dependabot (`.github/dependabot.yml`) proposes weekly updates for Python packages, GitHub Actions and the Docker base image; the LangChain packages are updated together in one grouped PR.
 
 ## Security notes
 
@@ -256,7 +256,7 @@ This is a local command-line tool, not a service, but it still handles secrets, 
 - **PDFs are untrusted input.** They are parsed with `pypdf`, pinned to a release with no known advisories when it was chosen (the older 5.4.0 had 96). Ingest PDFs you trust, or run ingestion in the container; `MAX_DOCS` bounds a run, and a file that crashes the parser is skipped, not fatal.
 - **Prompt injection:** text inside a document can try to steer the model. The model here has no tools, so the worst case is a misleading answer, not an action. Answers are grounded in your documents, not verified against the truth.
 - **Data leaves your machine:** document chunks and your questions are sent to the embedding provider (OpenAI) and the chat provider (OpenAI or Anthropic). Do not ingest anything you could not send to them.
-- **Dependencies:** check with `pip-audit --skip-editable` (in `requirements-dev.txt`). After upgrading `pypdf`, `aiohttp`, `urllib3` and other patch-level packages, 15 advisories remain in six LangChain-family packages whose fixes exist only in LangChain 1.x; that is a major migration and has not been done.
+- **Dependencies:** `pip-audit` (run by `scripts/audit.sh` and weekly in CI) reports no known vulnerabilities in the installed runtime packages, and nothing is ignored. Clearing the last advisories meant upgrading the LangChain packages from 0.3 to 1.x; that was checked first (same embedding model, unchanged retrieval results on the stored data, tests and a live run passing). `langchain` and `langchain-community` are no longer dependencies: PDFs are read with `pypdf` directly.
 - **Not hardened for exposure:** there is no authentication, rate limiting or input-size limiting, the app connects as the Postgres superuser, and the container runs as root. Fine on a laptop; change all four before putting any of it behind a network service.
 
 ## Notes and limitations
