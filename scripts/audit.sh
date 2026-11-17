@@ -6,6 +6,14 @@
 # (langchain-core 1.x, langchain-openai 1.x, langsmith 0.7+), a major migration this project has not
 # done. Anything NOT listed here fails the script, so a new advisory is a signal to act.
 # When the LangChain migration is done, delete this list.
+#
+# Why accepting them is reasonable here: every one concerns a feature this project does not use, and
+# tests/test_accepted_advisories.py fails if the code ever starts using one.
+#   langchain-text-splitters  HTMLHeaderTextSplitter.split_text_from_url (SSRF through redirects)
+#   langchain-core, langchain-openai  image-URL token counting (SSRF, DNS rebinding)
+#   langchain-core  load_prompt / load_prompt_from_config (path traversal)
+#   langchain, langchain-anthropic  file-search agent middleware, prompt and chain config loaders (path traversal)
+#   langsmith  TracingMiddleware (file read), public prompt pulls (unsafe deserialization), tracing redaction
 set -euo pipefail
 
 FROZEN="$(mktemp)"

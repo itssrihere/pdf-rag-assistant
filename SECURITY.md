@@ -20,8 +20,10 @@ logs, or unsafe handling of file paths.
 These are documented and not worth a report:
 
 - **Dependency advisories** listed in [`scripts/audit.sh`](scripts/audit.sh): 15 advisories in the LangChain
-  family whose fixes exist only in LangChain 1.x, a migration that has not been done. A *new* advisory fails the
-  build and is welcome news.
+  family whose fixes exist only in LangChain 1.x, a migration that has not been done. Each concerns a feature this
+  project does not use (HTML splitting from URLs, image-URL token counting, prompt loading, agent middleware,
+  LangSmith tracing), and a test fails if the code ever starts using one. A *new* advisory fails the build and is
+  welcome news.
 - **Not hardened for exposure.** It is a local command-line tool with no authentication, rate limiting or input
   limits; it connects to Postgres as the superuser and the container runs as root. See "Security notes" in the
   [README](README.md) before putting any of it behind a network service.
