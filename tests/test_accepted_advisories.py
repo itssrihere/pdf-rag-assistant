@@ -19,6 +19,8 @@ AFFECTED_FEATURES = {
     "TracingMiddleware": "langsmith: arbitrary file read in tracing middleware",
     "pull_prompt": "langsmith: unsafe deserialization of public prompt manifests",
     "hub.pull": "langsmith: unsafe deserialization of public prompt manifests",
+    "from_headers": "langsmith: SSRF through injected tracing headers",
+    "_url_to_size": "langchain-openai: DNS rebinding in image token counting",
 }
 
 
@@ -45,3 +47,12 @@ def test_code_does_not_use_features_that_have_accepted_unpatched_advisories():
 def test_the_check_actually_looks_at_the_code():
     sources = {path.name for path in application_sources()}
     assert {"ingest.py", "query.py", "llm.py"} <= sources
+
+
+def test_langsmith_tracing_is_never_switched_on_by_the_repo():
+    """Three of the accepted advisories only matter when LangSmith tracing is enabled, so no shipped config enables it."""
+    shipped = [ROOT / ".env.example", ROOT / "docker-compose.yml", ROOT / "Dockerfile", *application_sources()]
+    for path in shipped:
+        text = path.read_text()
+        for variable in ("LANGSMITH_TRACING", "LANGCHAIN_TRACING_V2", "LANGSMITH_API_KEY", "LANGCHAIN_API_KEY"):
+            assert variable not in text, f"{path.name} mentions {variable}; tracing would activate the accepted LangSmith advisories"

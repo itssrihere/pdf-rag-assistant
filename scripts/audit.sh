@@ -13,7 +13,12 @@
 #   langchain-core, langchain-openai  image-URL token counting (SSRF, DNS rebinding)
 #   langchain-core  load_prompt / load_prompt_from_config (path traversal)
 #   langchain, langchain-anthropic  file-search agent middleware, prompt and chain config loaders (path traversal)
-#   langsmith  TracingMiddleware (file read), public prompt pulls (unsafe deserialization), tracing redaction
+#   langsmith  TracingMiddleware (file read), public prompt pulls (unsafe deserialization), tracing redaction,
+#              SSRF through tracing headers; all need tracing or a server, and a fresh install resolves langsmith
+#              0.15.0, which has none of them
+#   Verified at runtime: wrapping every affected function and running ingest, a question with a follow-up and the
+#   LLM judges produced zero calls, with tracing off. In the versions installed here the file-search agent
+#   middleware (langchain 0.3.30, langchain-anthropic 0.3.22) does not exist at all.
 set -euo pipefail
 
 FROZEN="$(mktemp)"
