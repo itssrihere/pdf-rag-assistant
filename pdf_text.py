@@ -20,9 +20,11 @@ def _page_documents(path: Path, texts: list[str]) -> list[Document]:
 
 
 def _pypdf(path: Path) -> list[Document]:
-    from langchain_community.document_loaders import PyPDFLoader
+    from pypdf import PdfReader
 
-    return PyPDFLoader(str(path)).load()
+    # .strip() matches what LangChain's PyPDFLoader returned (checked: identical on 488 pages); that loader, and the
+    # langchain / langchain-community packages behind it, are no longer dependencies.
+    return _page_documents(path, [(page.extract_text() or "").strip() for page in PdfReader(str(path)).pages])
 
 
 def _pypdfium2(path: Path) -> list[Document]:

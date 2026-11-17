@@ -45,7 +45,7 @@ def table(monkeypatch):
 
 @pytest.fixture
 def fake_pdf_text(monkeypatch):
-    """PyPDFLoader replacement: every PDF 'contains' two pages of text derived from its file name."""
+    """load_pages replacement: every PDF 'contains' two pages of text derived from its file name."""
 
     def fake_load_pages(path):
         text = ("lorem ipsum dolor sit amet " * 8)
