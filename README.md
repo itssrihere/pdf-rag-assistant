@@ -246,7 +246,7 @@ pytest -q                            # unit tests; no database, API keys or netw
 scripts/audit.sh                     # dependency vulnerabilities (pip-audit must be on the PATH)
 ```
 
-GitHub Actions (`.github/workflows/ci.yml`) runs the first three on every push and pull request, and the dependency audit on every push and weekly, since new advisories appear without any code change. `scripts/audit.sh` lists the 15 advisories accepted until the LangChain 1.x migration (with the reason), so a *new* advisory fails the build. Dependabot (`.github/dependabot.yml`) proposes weekly updates for Python packages, GitHub Actions and the Docker base image, skipping the LangChain major versions.
+GitHub Actions (`.github/workflows/ci.yml`) runs the first three on every push and pull request, and the dependency audit on every push and weekly, since new advisories appear without any code change. `scripts/audit.sh` lists the 15 advisories accepted until the LangChain 1.x migration (with the reason), so a *new* advisory fails the build. A fourth job builds the Docker image and checks that the app imports inside it, so a base-image or dependency bump that breaks the container fails CI (a Python 3.15 base image once did, unnoticed, because nothing built the image). Dependabot (`.github/dependabot.yml`) proposes weekly updates for Python packages, GitHub Actions and the Docker base image, skipping the LangChain major versions.
 
 ## Security notes
 

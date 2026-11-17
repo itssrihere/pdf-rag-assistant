@@ -49,3 +49,16 @@ jobs:
         run: pipx install pip-audit
       - name: Audit (accepted advisories are listed in scripts/audit.sh)
         run: scripts/audit.sh
+
+  docker:
+    name: Docker image builds and starts
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the app image
+        run: docker build -t pdf-rag-assistant .
+      - name: Import smoke test (needs no database or real keys)
+        run: >
+          docker run --rm -e OPENAI_API_KEY=test -e POSTGRES_PASSWORD=test pdf-rag-assistant
+          python -c "import main, ingest, query, llm, pdf_text; print('imports ok')"

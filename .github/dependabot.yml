@@ -21,3 +21,8 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    ignore:
+      # The app is tested on Python 3.12. A newer interpreter can lack prebuilt wheels for a dependency (Python 3.15
+      # broke the image build on zstandard), so allow only patch updates until a newer version has been tested.
+      - dependency-name: "python"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
